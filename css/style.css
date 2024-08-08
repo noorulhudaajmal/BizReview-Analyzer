@@ -1,0 +1,31 @@
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@100&display=swap');
+
+html, body, [class*="css"] {
+    font-family: 'ubuntu', sans-serif;
+    font-weight: 500;
+}
+
+.svg-container{
+    border-radius:5%;
+}
+.container-xxl{
+    border-radius:5%;
+    position: sticky;
+}
+
+.plot-container{
+    border-radius:5%;
+}
+
+.plotly{
+    border-radius:5%;
+}
+
+.data-container {
+    display: grid;
+    grid-template-columns: repeat(5, 115px);
+    grid-gap: 10px;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+}
