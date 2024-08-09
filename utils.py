@@ -50,20 +50,22 @@ def fetch_pharmacy_details(api_key, result, location, i):
         review_time = datetime.fromtimestamp(review.get('time', 0), timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
 
         review_info = {
+            'place_id': pharmacy_info.get('id'),
             'datetime': review_time,
-            'id': review.get('review_id', ''),
+            'id': str(j+1),
             'place_Name': result.get('name', ''),
             'rating': review.get('rating', ''),
             'reviewer': review.get('author_name', ''),
             'serial_Number': str(j+1),
-            'text': review.get('text', '')
+            'text': review.get('text', ''),
+            'photo_url': review.get('profile_photo_url', None)
         }
         reviews_list.append(review_info)
 
     return pharmacy_info, reviews_list
 
 
-def get_pharmacy_and_review_data(api_key, business_place, location, n=60):
+def get_pharmacy_and_review_data(api_key, business_place, location, n=20):
     pharmacies_list = []
     all_reviews_list = []
     next_page_token = None
@@ -246,3 +248,14 @@ def get_location_coordinates(place: str):
     longitude = location.longitude
 
     return latitude, longitude
+
+
+# Fetch cities for the selected country using geopy
+def get_cities(country_name):
+    location = geolocator.geocode(country_name)
+    if location:
+        cities = geolocator.geocode(country_name, exactly_one=False, limit=100)
+        print(cities)
+        if cities:
+            return [city.address.split(',')[0] for city in cities]
+    return []

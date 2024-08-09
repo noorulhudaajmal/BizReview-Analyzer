@@ -1,3 +1,5 @@
+import json
+
 import streamlit as st
 import pandas as pd
 from streamlit_folium import folium_static
@@ -6,8 +8,11 @@ import requests
 from css.streamlit_style_const import STYLE
 from template.html import POPUP
 from utils import *
-from views import map_view
+from views import map_view, list_view
 from constants import query_map
+import pycountry
+from geosky import geo_plug
+
 
 # ------------------------------ Page Configuration------------------------------
 st.set_page_config(page_title="BizReview Analysis", page_icon="📊", layout="wide")
@@ -23,9 +28,28 @@ API_KEY = st.secrets["API_KEY"]
 
 # --------------------------------------------------------------------------------
 
-business_place = st.sidebar.selectbox(label="Business", options=list(query_map.keys()))
-location = st.sidebar.selectbox(label="Location", options=["Pakistan", "Switzerland", "India"])
+states_data = json.loads(geo_plug.all_Country_StateNames())
 
+
+business_place = st.sidebar.selectbox(label="Business", options=list(query_map.keys()))
+location = st.sidebar.selectbox(label="Location", options=geo_plug.all_CountryNames())
+
+# Find states for the selected country
+states = []
+for entry in states_data:
+    if location in entry:
+        states = entry[location]
+        break
+
+cities = set()
+# st.write(states_data)
+for state in states:
+    cities_data = json.loads(geo_plug.all_State_CityNames(state))
+    for entry in cities_data:
+        if state in entry:
+            cities.update(entry[state])
+            break
+city = st.sidebar.selectbox(label="City", options=sorted(cities))
 # --------------------------------------------------------------------------------
 
 def main():
@@ -35,12 +59,12 @@ def main():
                        icons=['map', 'view-list', 'bar-chart', 'graph-up-arrow']
                        )
 
-    # ----- Tab for Map View -----
+    # # ----- Tab for Map View -----
     if menu == "Pharmacies Map":
-        map_view(business_place, location, API_KEY)
+        map_view(business_place, f"{city},+{location}", API_KEY)
     # ----- Tab for List View -----
-    # elif menu == "List View":
-    #     list_view()
+    elif menu == "List View":
+        list_view(business_place, f"{city},+{location}", API_KEY)
     # # ----- Tab for Reviews Analysis -----
     # elif menu == "Reviews Analytics":
     #     review_analytics_page()
