@@ -43,21 +43,21 @@ def card_view(name, address, rating, reviews, contact):
             <div style="align-items:center;display: flex;">
                 <button style='background-color: #4a5759;border: 0;border-radius: 56px;
                                 color: #fff;display: inline-block;
-                                font-size: 18px; fontweight: 600; outline: 0; padding: 10px 21px; position: relative; 
+                                font-size: 15px; fontweight: 600; outline: 0; padding: 10px 18px; position: relative; 
                                 text-align: center; text-decoration: none; transition: all .3s; user-select: none; 
                                 -webkit-user-select: none; touch-action: manipulation;margin-right:15px;width:25%;'>
                         {rating} ⭐
                 </button>
                 <button style='background-color: #4a5759;border: 0;border-radius: 56px;
                                 color: #fff;display: inline-block;
-                                font-size: 18px; fontweight: 600; outline: 0; padding: 10px 21px; position: relative; 
+                                font-size: 15px; fontweight: 600; outline: 0; padding: 10px 18px; position: relative; 
                                 text-align: center; text-decoration: none; transition: all .3s; user-select: none; 
                                 -webkit-user-select: none; touch-action: manipulation;margin-right:15px;width:25%;'>
                         {int(reviews)} 👥
                 </button>
                 <a style='background-color: #4a5759;border: 0;border-radius: 56px;
                                 color: #fff;cursor: pointer;display: inline-block;
-                                font-size: 18px; fontweight: 600; outline: 0; padding: 10px 21px; position: relative; 
+                                font-size: 15px; fontweight: 600; outline: 0; padding: 10px 18px; position: relative; 
                                 text-align: center; text-decoration: none; transition: all .3s; user-select: none; 
                                 margin-right:15px;width:25%;'href='tel:{contact}'">
                   Dial 🌐
@@ -75,10 +75,10 @@ def review_card(name, date, stars):
                     <div style='font-size:1.5rem;'><b>{name}</b></div>
                     <div style='color:#415a77;'><b>{date}</b></div>
                 </div>
-                <button style='background-color: #4a5759;border: 0;border-radius: 12%;
+                <button style='background-color: #4a5759;border: 0;border-radius: 56px;
                                 color: #fff;display: inline-block;
-                                font-size: 18px; fontweight: 600; outline: 0; padding: 10px 21px; position: relative; 
-                                text-align: center; text-decoration: none; user-select: none; width:15%;'>
+                                font-size: 13px; fontweight: 600; outline: 0; padding: 8px 18px; position: relative; 
+                                text-align: center; text-decoration: none; user-select: none; width:20%;'>
                         {stars} ⭐
                 </button>
             </div>

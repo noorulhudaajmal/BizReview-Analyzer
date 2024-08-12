@@ -1,17 +1,10 @@
-import json
-
 import streamlit as st
 import pandas as pd
-from streamlit_folium import folium_static
 from streamlit_option_menu import option_menu
-import requests
 from css.streamlit_style_const import STYLE
-from template.html import POPUP
 from utils import *
-from views import map_view, list_view
+from views import map_view, list_view, review_analytics_page
 from constants import query_map
-import pycountry
-from geosky import geo_plug
 
 
 # ------------------------------ Page Configuration------------------------------
@@ -28,31 +21,16 @@ API_KEY = st.secrets["API_KEY"]
 
 # --------------------------------------------------------------------------------
 
-states_data = json.loads(geo_plug.all_Country_StateNames())
-
-
 business_place = st.sidebar.selectbox(label="Business", options=list(query_map.keys()))
-location = st.sidebar.selectbox(label="Location", options=geo_plug.all_CountryNames())
+countries_list = geo_plug.all_CountryNames()
+location = st.sidebar.selectbox(label="Location", options=countries_list)
+cities_list = get_cities_names(location)
+city = st.sidebar.selectbox(label="City", options=sorted(cities_list))
 
-# Find states for the selected country
-states = []
-for entry in states_data:
-    if location in entry:
-        states = entry[location]
-        break
-
-cities = set()
-# st.write(states_data)
-for state in states:
-    cities_data = json.loads(geo_plug.all_State_CityNames(state))
-    for entry in cities_data:
-        if state in entry:
-            cities.update(entry[state])
-            break
-city = st.sidebar.selectbox(label="City", options=sorted(cities))
 # --------------------------------------------------------------------------------
 
 def main():
+
     # ----- Menu -----
     menu = option_menu(menu_title=None, menu_icon=None, orientation="horizontal",
                        options=["Pharmacies Map", "List View", "Reviews Analytics", "Market Analysis"],
@@ -66,8 +44,8 @@ def main():
     elif menu == "List View":
         list_view(business_place, f"{city},+{location}", API_KEY)
     # # ----- Tab for Reviews Analysis -----
-    # elif menu == "Reviews Analytics":
-    #     review_analytics_page()
+    elif menu == "Reviews Analytics":
+        review_analytics_page()
     #
     # # ----- Tab for Pharmaceutical Market Analysis -----
     # elif menu == "Market Analysis":

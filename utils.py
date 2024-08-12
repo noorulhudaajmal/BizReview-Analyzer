@@ -1,19 +1,62 @@
 import requests
 import pandas as pd
 from typing import Tuple
-import folium
-from template.html import POPUP
 from datetime import datetime, timezone
 from concurrent.futures import ThreadPoolExecutor
 from geopy.geocoders import Nominatim
+from geosky import geo_plug
 import streamlit as st
-from constants import query_map
+import json
+import time
+
 
 # Initialize Nominatim geocoder
 geolocator = Nominatim(user_agent="Biz-Reviews-Analyzer")
 
 
-def fetch_pharmacy_details(api_key, result, location, i):
+def get_cities_names(location):
+    states_data = json.loads(geo_plug.all_Country_StateNames())
+
+    # Find states for the selected country
+    states = []
+    for entry in states_data:
+        if location in entry:
+            states = entry[location]
+            break
+
+    cities = set()
+    # st.write(states_data)
+    for state in states:
+        cities_data = json.loads(geo_plug.all_State_CityNames(state))
+        for entry in cities_data:
+            if state in entry:
+                cities.update(entry[state])
+                break
+
+    return cities
+
+
+def get_location_coordinates(place: str):
+    # Get the latitude and longitude of the country
+    location = geolocator.geocode(place)
+    latitude = location.latitude
+    longitude = location.longitude
+
+    return latitude, longitude
+
+
+# Fetch cities for the selected country using geopy
+def get_cities(country_name):
+    location = geolocator.geocode(country_name)
+    if location:
+        cities = geolocator.geocode(country_name, exactly_one=False, limit=100)
+        print(cities)
+        if cities:
+            return [city.address.split(',')[0] for city in cities]
+    return []
+
+
+def fetch_place_details(api_key, result, location, i):
     place_id = result['place_id']
 
     # Place Details
@@ -21,8 +64,8 @@ def fetch_pharmacy_details(api_key, result, location, i):
     details_response = requests.get(details_url)
     details_data = details_response.json()
 
-    # Extract pharmacy information
-    pharmacy_info = {
+    # Extract place information
+    place_info = {
         'address': result.get('formatted_address', ''),
         'averageRating': details_data['result'].get('rating', ''),
         'city': location,
@@ -32,46 +75,25 @@ def fetch_pharmacy_details(api_key, result, location, i):
         'latitude': result['geometry']['location'].get('lat', ''),
         'longitude': result['geometry']['location'].get('lng', ''),
         'name': result.get('name', ''),
-        'totalReviews': details_data['result'].get('user_ratings_total', '')
+        'totalReviews': details_data['result'].get('user_ratings_total', ''),
+        'place_id': result.get('place_id', ''),
     }
     # Extract the photo_reference and construct the photo URL
     photo_reference = result.get("photos", [{}])[0].get("photo_reference", "")
     if photo_reference:
         photo_url = f"https://maps.googleapis.com/maps/api/place/photo?maxwidth=100&photoreference={photo_reference}&key={api_key}"
-        pharmacy_info['photo_url'] = photo_url
+        place_info['photo_url'] = photo_url
     else:
-        pharmacy_info['photo_url'] = None
+        place_info['photo_url'] = None
 
-    # Extract reviews (only up to 5 due to API limitation)
-    reviews_list = []
-    reviews = details_data['result'].get('reviews', [])
-    for j, review in enumerate(reviews):
-        # Convert epoch time to timezone-aware datetime string
-        review_time = datetime.fromtimestamp(review.get('time', 0), timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
-
-        review_info = {
-            'place_id': pharmacy_info.get('id'),
-            'datetime': review_time,
-            'id': str(j+1),
-            'place_Name': result.get('name', ''),
-            'rating': review.get('rating', ''),
-            'reviewer': review.get('author_name', ''),
-            'serial_Number': str(j+1),
-            'text': review.get('text', ''),
-            'photo_url': review.get('profile_photo_url', None)
-        }
-        reviews_list.append(review_info)
-
-    return pharmacy_info, reviews_list
+    return place_info
 
 
-def get_pharmacy_and_review_data(api_key, business_place, location, n=20):
-    pharmacies_list = []
-    all_reviews_list = []
+def get_places_data(api_key, business_place, location, n=20):
+    places_list = []
     next_page_token = None
 
-
-    while len(pharmacies_list) < n:
+    while len(places_list) < n:
         # Place Search with pagination support
         search_url = f"https://maps.googleapis.com/maps/api/place/textsearch/json?query={business_place}+in+{location}&key={api_key}"
         if next_page_token:
@@ -85,57 +107,92 @@ def get_pharmacy_and_review_data(api_key, business_place, location, n=20):
 
         with ThreadPoolExecutor(max_workers=10) as executor:
             futures = [
-                executor.submit(fetch_pharmacy_details, api_key, result, location, len(pharmacies_list) + i)
+                executor.submit(fetch_place_details, api_key, result, location, len(places_list) + i)
                 for i, result in enumerate(search_data['results'])
             ]
 
             for future in futures:
-                pharmacy_info, reviews_list = future.result()
-                pharmacies_list.append(pharmacy_info)
-                all_reviews_list.extend(reviews_list)
+                place_info = future.result()
+                places_list.append(place_info)
 
-                df_pharmacies_info = pd.DataFrame(pharmacies_list)
-                df_review_list = pd.DataFrame(all_reviews_list)
+                df_places_info = pd.DataFrame(places_list)
 
-                df_pharmacies_info, df_review_list = pre_process_data(df_pharmacies_info, df_review_list)
-                yield df_pharmacies_info, df_review_list
+                df_places_info = preprocess_data(df_places_info)
+                yield df_places_info
 
         next_page_token = search_data.get('next_page_token', None)
         if not next_page_token:
             break
 
-        # To prevent hitting API rate limits, you may need to introduce a delay
-        import time
+        # To prevent hitting API rate limits
         time.sleep(2)  # Delay for 2 seconds before making the next request
 
-        if len(pharmacies_list) >= n:
+        if len(places_list) >= n:
             break
 
     # Convert lists to DataFrames
-    df_pharmacies = pd.DataFrame(pharmacies_list)
-    df_reviews = pd.DataFrame(all_reviews_list)
+    df_places = pd.DataFrame(places_list)
 
-    df_pharmacies, df_reviews = pre_process_data(df_pharmacies, df_reviews)
+    df_places = preprocess_data(df_places)
 
-    return df_pharmacies, df_reviews
+    return df_places
 
 
-def pre_process_data(data: pd.DataFrame, reviews: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
+def get_place_reviews(api_key, result):
+    place_id = result['place_id']
+
+    # Place Details
+    details_url = f"https://maps.googleapis.com/maps/api/place/details/json?place_id={place_id}&fields=name,formatted_address,geometry,international_phone_number,rating,user_ratings_total,reviews&key={api_key}"
+    details_response = requests.get(details_url)
+    details_data = details_response.json()
+
+    # Extract reviews
+    reviews_list = []
+    reviews = details_data['result'].get('reviews', [])
+    for j, review in enumerate(reviews):
+        # epoch time to timezone-aware datetime string
+        review_time = datetime.fromtimestamp(review.get('time', 0), timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
+
+        review_info = {
+            'place_id': result.get('id'),
+            'datetime': review_time,
+            'id': str(j+1),
+            'place_Name': result.get('name', ''),
+            'rating': review.get('rating', ''),
+            'reviewer': review.get('author_name', ''),
+            'serial_Number': str(j+1),
+            'text': review.get('text', ''),
+            'photo_url': review.get('profile_photo_url', None)
+        }
+        reviews_list.append(review_info)
+
+    return preprocess_reviews(pd.DataFrame(reviews_list))
+
+
+def preprocess_reviews(df: pd.DataFrame) -> Tuple[pd.DataFrame]:
     """
-    Pre-processes data related to pharmacy listings and reviews.
-    :param data: DataFrame containing information about pharmacy listings.
-    :param reviews: DataFrame containing reviews data.
-    :return: A tuple containing pre-processed DataFrames for listings and reviews.
+    Pre-processes reviews data.
+    :param data: DataFrame containing reviews data.
+    :return: A pre-processed DataFrame for reviews.
+    """
+    df = pre_process_reviews(df)
+    return df
+
+
+def preprocess_data(data: pd.DataFrame) -> Tuple[pd.DataFrame]:
+    """
+    Pre-processes data related to place listings.
+    :param data: DataFrame containing information about place listings.
+    :return: A pre-processed DataFrames for places.
     """
     data = pre_process_listings_data(data)
-    reviews = pre_process_reviews(reviews)
-    return data, reviews
+    return data
 
 
 def pre_process_listings_data(data: pd.DataFrame) -> pd.DataFrame:
     """
-    Pre-processes pharmacy listings data.
-    :param data: The input DataFrame containing pharmacy listings data.
+    Pre-processes place listings data.
+    :param data: The input DataFrame containing place listings data.
     :return: Processed DataFrame with adjusted column datatypes, filled NaN values,
     added markerColor based on totalReviews, adjustedReview, and adjustedRating columns.
     """
@@ -238,24 +295,3 @@ def adjust_column_datatypes_of_reviews(df: pd.DataFrame) -> pd.DataFrame:
     df["rating"] = pd.to_numeric(df["rating"], errors='coerce', downcast='float')
     return df
 
-
-
-
-def get_location_coordinates(place: str):
-    # Get the latitude and longitude of the country
-    location = geolocator.geocode(place)
-    latitude = location.latitude
-    longitude = location.longitude
-
-    return latitude, longitude
-
-
-# Fetch cities for the selected country using geopy
-def get_cities(country_name):
-    location = geolocator.geocode(country_name)
-    if location:
-        cities = geolocator.geocode(country_name, exactly_one=False, limit=100)
-        print(cities)
-        if cities:
-            return [city.address.split(',')[0] for city in cities]
-    return []
