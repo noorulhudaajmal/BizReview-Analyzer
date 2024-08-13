@@ -3,7 +3,7 @@ import pandas as pd
 from streamlit_option_menu import option_menu
 from css.streamlit_style_const import STYLE
 from utils import *
-from views import map_view, list_view, review_analytics_page
+from views import map_view, list_view, review_analytics_page, market_analysis_page
 from constants import query_map
 
 
@@ -18,6 +18,9 @@ with open("css/style.css") as css:
 st.markdown(STYLE, unsafe_allow_html=True)
 
 API_KEY = st.secrets["API_KEY"]
+
+st.session_state['places_data'] = {}
+st.session_state['reviews_data'] = {}
 
 # --------------------------------------------------------------------------------
 
@@ -45,11 +48,11 @@ def main():
         list_view(business_place, f"{city},+{location}", API_KEY)
     # # ----- Tab for Reviews Analysis -----
     elif menu == "Reviews Analytics":
-        review_analytics_page()
+        review_analytics_page(f"{city},+{location}")
     #
     # # ----- Tab for Pharmaceutical Market Analysis -----
-    # elif menu == "Market Analysis":
-    #     market_analysis_page()
+    elif menu == "Market Analysis":
+        market_analysis_page(location=f"{city},+{location}", country=location)
 
 
     # --------------------------------------------------------------------------------

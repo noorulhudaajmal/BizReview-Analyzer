@@ -3,9 +3,6 @@ STYLE = """
     [data-testid=stHeader] {
         display:none;
     }
-    [data-testid=stSidebar] {
-        padding-top: 100px;
-    }
     [data-testid=stAppViewBlockContainer] {
         padding-top: 0px;
     }
@@ -15,10 +12,6 @@ STYLE = """
     }
     [data-testid="stImage"] {
         border-radius: 50%;
-    }
-   [data-testid=stSidebarUserContent]{
-      margin-top: -75px;
-      margin-top: -75px;
     }
 </style>
 """

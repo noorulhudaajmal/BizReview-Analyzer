@@ -2,6 +2,9 @@ import streamlit as st
 import pandas as pd
 import folium
 from streamlit_folium import folium_static
+
+from plots import average_rating_overtime, rating_breakdown_pie, sentiment_score_overtime, reviews_wordcloud, \
+    average_rating_wrt_month_year, top_performing_places, place_choropleth
 from template.html import POPUP, review_card, card_view
 from constants import icons_map
 from utils import *
@@ -23,9 +26,8 @@ def map_view(business_place, location: str, API_KEY: str):
 
     # Placeholder for displaying the map
     # map_placeholder = st.empty()
-    lat, lon = get_location_coordinates(location)
     # Initialize the map
-    places_map = folium.Map(location=[lat, lon], zoom_start=10, control_scale=True, prefer_canvas=True)
+    places_map = folium.Map(location=[0, 0], zoom_start=10, control_scale=True, prefer_canvas=True)
 
     # Display the initial map
     map_placeholder = folium_static(places_map, width=1000, height=600)
@@ -57,11 +59,14 @@ def map_view(business_place, location: str, API_KEY: str):
                     popup=popup,
                 ).add_to(places_map)
 
+            places_map.fit_bounds(places_map.get_bounds())
+
             # Update the map display with the new markers
             map_placeholder.empty()  # Clear previous map
             map_placeholder = folium_static(places_map, width=1000, height=600)
 
-    st.session_state['places_data'] = place_data
+    st.session_state[f'{location}-data'] = place_data
+
 
 
 @st.cache_data
@@ -76,18 +81,13 @@ def list_view(business_place, location: str, API_KEY: str):
     :return: The Folium map with place markers.
     """
 
-    place_data = st.session_state['places_data']
+    place_data = st.session_state[f'{location}-data']
     reviews_data = pd.DataFrame()
 
     for _, place in place_data.iterrows():
         upper_row = st.columns(2)
         with upper_row[0]:
-            row = st.columns((2, 8))
-            # card view
-            # image on left
-            row[0].image(place['photo_url'])
-            # info on right
-            row[1].markdown(card_view(place["name"], place["address"],
+            st.markdown(card_view(place["name"], place["address"], place['photo_url'],
                                       f"{place['averageRating']:.1f}", place["totalReviews"],
                                       place["contact"]),
                             unsafe_allow_html=True)
@@ -115,10 +115,10 @@ def list_view(business_place, location: str, API_KEY: str):
 
         st.write("---")
 
-    st.session_state['reviews_data'] = reviews_data
+    st.session_state[f'{location}-reviews'] = reviews_data
 
 
-def review_analytics_page():
+def review_analytics_page(location):
     """
     Function to show filter, display KPIs and analytics for a place
     Functionalities:
@@ -130,8 +130,8 @@ def review_analytics_page():
      - Plotly Pie Chart to get distribution of review per rating.
     :return: Streamlit frame/view
     """
-    place_data = st.session_state['places_data']
-    reviews_data = st.session_state['reviews_data']
+    place_data = st.session_state[f'{location}-data']
+    reviews_data = st.session_state[f'{location}-reviews']
 
     filter_kpi_row = st.columns((3, 1, 2, 2, 2, 2))
     place = filter_kpi_row[0].selectbox("Select place", options=reviews_data["place_Name"].unique())
@@ -148,7 +148,7 @@ def review_analytics_page():
     filter_kpi_row[5].metric(label="Reviews Rate/month", value=f"{monthly_reviews_rate:.1f}")
 
     # calling function to display analytics charts based on selected place
-    # display_reviews_analysis(filtered_data)
+    display_reviews_analysis(place_reviews)
 
 
 def calculate_kpis(place_data, place_reviews):
@@ -171,4 +171,42 @@ def calculate_kpis(place_data, place_reviews):
     unique_reviewers = place_reviews["reviewer"].nunique()
 
     return total_reviews, average_ratings, unique_reviewers, monthly_reviews_rate
+
+
+def display_reviews_analysis(reviews_data: pd.DataFrame) -> None:
+    """
+    Function to display reviews analytics.
+    :param reviews_data: reviews data.
+    :return: None
+    """
+
+    charts_row_1 = st.columns((4, 3))
+    # Chart to display Reviews Distribution w.r.t Quarter-Year
+    charts_row_1[0].plotly_chart(average_rating_overtime(reviews_data), use_container_width=True)
+    # Chart to display Reviews per Rating
+    charts_row_1[1].plotly_chart(rating_breakdown_pie(reviews_data), use_container_width=True)
+
+    charts_row_2 = st.columns((3, 4))
+    # scatter plot to display sentiment score over the time
+    charts_row_2[0].plotly_chart(sentiment_score_overtime(reviews_data), use_container_width=True)
+    # chart to display the varying rating over the time
+    charts_row_2[1].plotly_chart(average_rating_wrt_month_year(reviews_data), use_container_width=True)
+    # Wordcloud figure to analyze frequently occurring words in review text
+    st.pyplot(reviews_wordcloud(reviews_data), clear_figure=True, use_container_width=True)
+
+
+
+# @st.cache_resource
+def market_analysis_page(location, country):
+    """
+    Function to create view for the 'Market Analysis' tab
+    :return: Analytics charts
+    """
+    place_data = st.session_state[f'{location}-data']
+
+    cols = st.columns(2)
+    cols[0].write("#### Geographical Distribution of Ratings")
+    cols[0].plotly_chart(place_choropleth(place_data, country), use_container_width=True)
+    cols[1].write("#### Top Rated Pharmacies")
+    cols[1].plotly_chart(top_performing_places(place_data), use_container_width=True)
 

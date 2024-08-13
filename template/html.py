@@ -32,36 +32,41 @@ POPUP = """
 """
 
 
-def card_view(name, address, rating, reviews, contact):
+def card_view(name, address, img_url,rating, reviews, contact):
     return f"""
-        <div>
+        <div style='display:flex; justify-content:space between; align-items:center; gap:20px;'>
             <div>
-                <div style='font-size:1.5rem;'><b>{name}</b></div>
-                <div style='color:#e63946;'><b>{address}</b></div>
+                <img src={img_url} style='border-radius:8px;' />
             </div>
-            <br>
-            <div style="align-items:center;display: flex;">
-                <button style='background-color: #4a5759;border: 0;border-radius: 56px;
-                                color: #fff;display: inline-block;
-                                font-size: 15px; fontweight: 600; outline: 0; padding: 10px 18px; position: relative; 
-                                text-align: center; text-decoration: none; transition: all .3s; user-select: none; 
-                                -webkit-user-select: none; touch-action: manipulation;margin-right:15px;width:25%;'>
-                        {rating} ⭐
-                </button>
-                <button style='background-color: #4a5759;border: 0;border-radius: 56px;
-                                color: #fff;display: inline-block;
-                                font-size: 15px; fontweight: 600; outline: 0; padding: 10px 18px; position: relative; 
-                                text-align: center; text-decoration: none; transition: all .3s; user-select: none; 
-                                -webkit-user-select: none; touch-action: manipulation;margin-right:15px;width:25%;'>
-                        {int(reviews)} 👥
-                </button>
-                <a style='background-color: #4a5759;border: 0;border-radius: 56px;
-                                color: #fff;cursor: pointer;display: inline-block;
-                                font-size: 15px; fontweight: 600; outline: 0; padding: 10px 18px; position: relative; 
-                                text-align: center; text-decoration: none; transition: all .3s; user-select: none; 
-                                margin-right:15px;width:25%;'href='tel:{contact}'">
-                  Dial 🌐
-                </a>
+            <div>
+                <div>
+                    <div style='font-size:1.2rem;'><b>{name}</b></div>
+                    <div style='color:#e63946; font-size:1rem;'><b>{address}</b></div>
+                </div>
+                <br>
+                <div style="align-items:center;display: flex;">
+                    <button style='background-color: #4a5759;border: 0;border-radius: 56px;
+                                    color: #fff;display: inline-block;
+                                    font-size: 15px; fontweight: 600; outline: 0; padding: 10px 18px; position: relative; 
+                                    text-align: center; text-decoration: none; transition: all .3s; user-select: none; 
+                                    -webkit-user-select: none; touch-action: manipulation;margin-right:15px;width:25%;'>
+                            {rating} ⭐
+                    </button>
+                    <button style='background-color: #4a5759;border: 0;border-radius: 56px;
+                                    color: #fff;display: inline-block;
+                                    font-size: 15px; fontweight: 600; outline: 0; padding: 10px 18px; position: relative; 
+                                    text-align: center; text-decoration: none; transition: all .3s; user-select: none; 
+                                    -webkit-user-select: none; touch-action: manipulation;margin-right:15px;width:25%;'>
+                            {int(reviews)} 👥
+                    </button>
+                    <a style='background-color: #4a5759;border: 0;border-radius: 56px;
+                                    color: #fff;cursor: pointer;display: inline-block;
+                                    font-size: 15px; fontweight: 600; outline: 0; padding: 10px 18px; position: relative; 
+                                    text-align: center; text-decoration: none; transition: all .3s; user-select: none; 
+                                    margin-right:15px;width:25%;'href='tel:{contact}'">
+                      Dial 🌐
+                    </a>
+                </div>
             </div>
         </div>
         """

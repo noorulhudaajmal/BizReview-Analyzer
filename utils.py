@@ -8,6 +8,13 @@ from geosky import geo_plug
 import streamlit as st
 import json
 import time
+# from textblob_de import TextBlobDE
+# from textblob_fr import PatternAnalyzer
+from textblob import TextBlob
+import nltk
+
+nltk.download('punkt')
+
 
 
 # Initialize Nominatim geocoder
@@ -34,15 +41,6 @@ def get_cities_names(location):
                 break
 
     return cities
-
-
-def get_location_coordinates(place: str):
-    # Get the latitude and longitude of the country
-    location = geolocator.geocode(place)
-    latitude = location.latitude
-    longitude = location.longitude
-
-    return latitude, longitude
 
 
 # Fetch cities for the selected country using geopy
@@ -162,11 +160,15 @@ def get_place_reviews(api_key, result):
             'reviewer': review.get('author_name', ''),
             'serial_Number': str(j+1),
             'text': review.get('text', ''),
-            'photo_url': review.get('profile_photo_url', None)
+            'photo_url': review.get('profile_photo_url', None),
+            'language': review.get('language', '')
         }
         reviews_list.append(review_info)
 
-    return preprocess_reviews(pd.DataFrame(reviews_list))
+    if len(reviews) != 0:
+        return preprocess_reviews(pd.DataFrame(reviews_list))
+    else:
+        return pd.DataFrame()
 
 
 def preprocess_reviews(df: pd.DataFrame) -> Tuple[pd.DataFrame]:
@@ -293,5 +295,55 @@ def adjust_column_datatypes_of_reviews(df: pd.DataFrame) -> pd.DataFrame:
     df["datetime"] = pd.to_datetime(df["datetime"])
     df["text"] = df["text"].astype(str)
     df["rating"] = pd.to_numeric(df["rating"], errors='coerce', downcast='float')
+    return df
+
+
+def calculate_sentiment_score(row: pd.Series):
+    """
+    Function to calculate sentiment score of a review.
+    of ratings to corresponding integer representation
+    :param row: Series containing text and language of the review
+    :return: None
+   """
+    text = row['text']
+    lang = row['language']
+
+    # worst-case: text has no words or language other than English
+    if len(text) == 0 or lang not in ['en']:
+        rating = row['rating']
+        if rating == 5:
+            return 1
+        elif rating == 4:
+            return 0.5
+        elif rating == 3:
+            return 0
+        elif rating == 2:
+            return -0.5
+        elif rating == 1:
+            return -1
+    else:
+        return TextBlob(text).sentiment.polarity
+    # # calculating sentiment score based on language
+    # if lang in ['en', 'de', 'fr']:
+    #     if lang == 'en':
+    #         return TextBlob(text).sentiment.polarity
+    #     elif lang == 'de':
+    #         return TextBlobDE(text).sentiment.polarity
+    #     elif lang == 'fr':
+    #         return TextBlob(text, analyzer=PatternAnalyzer()).sentiment[0]
+
+    return None
+
+
+def insert_sentiment_scores(df):
+    """
+    Function to insert sentiment score column
+    to a dataframe containing review text.
+    :param df: dataframe containing reviews data
+    :return: dataframe with added column representing sentiment scores.
+    """
+    # Add a new column for sentiment scores using the calculate_sentiment_score function
+    df['sentiment_score'] = df.apply(calculate_sentiment_score, axis=1)
+
     return df
 
