@@ -1,14 +1,14 @@
-import json
-
+import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 from matplotlib import pyplot as plt
 from wordcloud import WordCloud
 
+from template.html import POPUP
 from utils import insert_sentiment_scores
-import numpy as np
-import streamlit as st
-import requests
+import folium
+from folium.plugins import MarkerCluster
+from streamlit_folium import folium_static
 
 
 COLORS = ["#0081a7", "#00afb9", "#f07167", "#e9c46a", "#264653",
@@ -71,7 +71,7 @@ def average_rating_overtime(df):
     :param df: The input DataFrame containing review data.
     :return: A Plotly Figure representing average distribution overtime.
     """
-    # Calculate the length of each review
+
     df['year'] = df['datetime'].dt.year
     df['quarter'] = df['datetime'].dt.quarter
 
@@ -91,9 +91,7 @@ def average_rating_overtime(df):
             marker=dict(color=COLORS[quarter])
         ))
 
-    # Customize the layout
     fig.update_layout(barmode='group', legend=dict(title='Quarter'))
-
     fig = update_layout(fig, "Time", "Average Rating", "Average Rating overtime")
     return fig
 
@@ -112,7 +110,6 @@ def average_rating_wrt_month_year(df):
     # Calculate average rating for each year and month
     avg_rating = df.groupby(['year', 'month_num', 'month_year'])['rating'].mean().reset_index()
 
-    # Create a Plotly go figure
     fig = go.Figure()
 
     years = sorted(list(avg_rating['year'].unique()))
@@ -129,9 +126,7 @@ def average_rating_wrt_month_year(df):
         ))
         ind+=1
 
-    # Customize the layout
     fig.update_layout(barmode='group', legend=dict(title='Year'))
-
     fig = update_layout(fig, "Time", "Average Rating", "Average Rating overtime w.r.t Month-Year")
     return fig
 
@@ -159,7 +154,6 @@ def rating_breakdown_pie(df: pd.DataFrame) -> go.Figure:
     fig.update_traces(hoverinfo='label+value', textinfo='percent', textfont_size=15,
                       marker=dict(colors=COLORS))
     fig = update_layout(fig, "Rating", "Review Count", "Rating Distribution")
-
     return fig
 
 
@@ -189,52 +183,6 @@ def sentiment_score_overtime(df):
     return fig
 
 
-def place_choropleth(df, country):
-    """
-    Function to plot a choropleth-like map based on average rating using latitude and longitude.
-    :param df: The input DataFrame containing review data.
-    :return: A Plotly Figure showing rating density per region.
-    """
-    url = "https://raw.githubusercontent.com/johan/world.geo.json/master/countries.geo.json"
-    geo = requests.get(url).json()
-
-    df["country"] = country
-
-    # Calculate the average latitude and longitude for centering the map
-    avg_lat = df['latitude'].mean()
-    avg_lon = df['longitude'].mean()
-
-    # Geographic Map
-    fig = go.Figure(
-        go.Choroplethmapbox(
-            geojson=geo,
-            locations=df["country"],
-            featureidkey="properties.name",
-            z=df["averageRating"],
-            colorscale="sunsetdark",
-            marker_opacity=0.8,
-            marker_line_width=1,
-        )
-    )
-    fig.update_layout(
-        mapbox_style="carto-positron",
-        mapbox_zoom=6,
-        mapbox_center={"lat": avg_lat, "lon": avg_lon},
-        height=500,
-        margin={"r": 0, "t": 0, "l": 0, "b": 0},
-        title="Geographical Distribution of Ratings",
-        hovermode="x unified",
-        hoverlabel=dict(
-            bgcolor="white",
-            font_color="black",
-            font_size=16,
-            font_family="Rockwell"
-        )
-    )
-
-    return fig
-
-
 def top_performing_places(df):
     """
     Function to plot a bar chart of top-performing places based on reviews, ratings, and reliability.
@@ -250,8 +198,8 @@ def top_performing_places(df):
         "totalReviews": "sum"
     }).reset_index()
 
-    # Filter places with total reviews above the average
-    thresh = df["totalReviews"].quantile(0.50)
+    # Filter places with total reviews above certain range
+    thresh = df["totalReviews"].quantile(0.40)
     df = df[df["totalReviews"] >= thresh]
 
     # Calculate Satisfaction Score
@@ -288,7 +236,7 @@ def top_performing_places(df):
         )
     )
 
-    # Add Reliability Score bars
+    # Add Reliability Score line
     fig.add_trace(
         go.Scatter(
             x=top_places["name"],
@@ -305,8 +253,8 @@ def top_performing_places(df):
         )
     )
 
-    # Update layout
     fig.update_layout(
+        title="Top Rated Places",
         height=500,
         xaxis_title="Score",
         yaxis_title="Place",
@@ -320,3 +268,54 @@ def top_performing_places(df):
     )
 
     return fig
+
+
+def spatial_dist_of_business_points(df):
+    # Create a base map centered around the average latitude and longitude
+    map_center = [df['latitude'].mean(), df['longitude'].mean()]
+    m = folium.Map(location=map_center, zoom_start=12)
+
+    # Create a MarkerCluster object
+    marker_cluster = MarkerCluster().add_to(m)
+
+    # Add markers to the cluster
+    for i, row in df.iterrows():
+        popup_text = f"<strong>{row['name']}</strong><br>Rating: {row['averageRating']}<br>Reviews: {row['totalReviews']}"
+        folium.Marker(
+            location=[row['latitude'], row['longitude']],
+            popup=popup_text
+        ).add_to(marker_cluster)
+
+    m.fit_bounds(m.get_bounds())
+    folium_static(m, width=600, height=500)
+
+
+def folium_marker_map(df):
+    # Create a map centered around the average latitude and longitude
+    map_center = [df['latitude'].mean(), df['longitude'].mean()]
+    m = folium.Map(location=map_center, zoom_start=10, control_scale=True, prefer_canvas=True)
+
+    # Add circle markers to the map
+    for i, row in df.iterrows():
+        iframe = folium.IFrame(POPUP.format(
+            "",
+            str(row["name"]),
+            str(row["address"]),
+            str(row["averageRating"]),
+            str(row["totalReviews"]),
+            row["contact"]
+        ), width=320, height=180)
+        popup = folium.Popup(iframe, min_width=150, max_width=300)
+
+        folium.CircleMarker(
+            location=[row['latitude'], row['longitude']],
+            radius=row['totalReviews'] / 50,
+            color=None,
+            fill=True,
+            fill_color='blue' if row['averageRating'] >= 4 else 'yellow' if row['averageRating'] >= 3 else 'red',
+            fill_opacity=0.6,
+            popup=popup
+        ).add_to(m)
+
+    m.fit_bounds(m.get_bounds())
+    folium_static(m, width=600, height=500)

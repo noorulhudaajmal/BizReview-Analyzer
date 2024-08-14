@@ -1,25 +1,27 @@
-import streamlit as st
-import pandas as pd
 import folium
+import pandas as pd
+import streamlit as st
 from streamlit_folium import folium_static
-
 from plots import average_rating_overtime, rating_breakdown_pie, sentiment_score_overtime, reviews_wordcloud, \
-    average_rating_wrt_month_year, top_performing_places, place_choropleth
+    average_rating_wrt_month_year, top_performing_places, folium_marker_map, spatial_dist_of_business_points
 from template.html import POPUP, review_card, card_view
-from constants import icons_map
-from utils import *
+from template.constants import icons_map
+from utils import get_places_data, get_place_reviews, calculate_kpis
 
 
 @st.cache_data
-def map_view(business_place, location: str, API_KEY: str):
+def map_view(business_place, country: str, city: str, API_KEY: str):
     """
     Creates a Folium map with markers for places based on the provided DataFrame.
 
+    :param city: name of city
+    :param country: name of country
     :param business_place: type of business
     :param API_KEY: Google Maps API key
-    :param location: The user selected location
     :return: The Folium map with place markers.
     """
+
+    location = f"{city},+{country}"
 
     # Initialize an empty DataFrame to hold the place data
     place_data = pd.DataFrame()
@@ -33,7 +35,7 @@ def map_view(business_place, location: str, API_KEY: str):
     map_placeholder = folium_static(places_map, width=1000, height=600)
 
     with st.spinner("Loading..."):
-        for partial_place_data in get_places_data(API_KEY, business_place, location):
+        for partial_place_data in get_places_data(API_KEY, business_place, location=location):
             # Append new data to the existing DataFrame
             place_data = pd.concat([place_data, partial_place_data], ignore_index=True)
 
@@ -63,25 +65,27 @@ def map_view(business_place, location: str, API_KEY: str):
 
             # Update the map display with the new markers
             map_placeholder.empty()  # Clear previous map
-            map_placeholder = folium_static(places_map, width=1000, height=600)
+            map_placeholder = folium_static(places_map, width=1200, height=600)
 
-    st.session_state[f'{location}-data'] = place_data
+    st.session_state[f'{location}-{business_place}-data'] = place_data
+
 
 
 
 @st.cache_data
-def list_view(business_place, location: str, API_KEY: str):
+def list_view(business_place, country, city, API_KEY: str):
     """
-    Function to create a view to list places for smooth user interaction
+    Function to create a view to list places.
     Data view in list with place detail on left and its reviews on right.
 
+    :param city: name of city
+    :param country: name of country
     :param business_place: type of business
     :param API_KEY: Google Maps API key
-    :param location: The user selected location
-    :return: The Folium map with place markers.
+    :return: streamlit view
     """
-
-    place_data = st.session_state[f'{location}-data']
+    location=f'{city},+{country}'
+    place_data = st.session_state[f'{location}-{business_place}-data']
     reviews_data = pd.DataFrame()
 
     for _, place in place_data.iterrows():
@@ -95,7 +99,6 @@ def list_view(business_place, location: str, API_KEY: str):
         place_reviews = get_place_reviews(api_key=API_KEY, result=place)
         reviews_data = pd.concat([reviews_data, place_reviews])
         with upper_row[1]:
-            # st.dataframe(place_reviews)
             # place Reviews Tab
             review_bar = st.expander(label=f"Reviews ({len(place_reviews)})")
             with review_bar:
@@ -115,23 +118,27 @@ def list_view(business_place, location: str, API_KEY: str):
 
         st.write("---")
 
-    st.session_state[f'{location}-reviews'] = reviews_data
+    st.session_state['data_store'].loc[
+        (st.session_state['data_store']["City"] == city) &
+        (st.session_state['data_store']["Country"] == country) &
+        (st.session_state['data_store']["Business Point"] == business_place),
+        "Reviews"
+    ] = 1
+
+    st.session_state[f'{location}-{business_place}-reviews'] = reviews_data
 
 
-def review_analytics_page(location):
+def review_analytics_page(location, business_place):
     """
-    Function to show filter, display KPIs and analytics for a place
-    Functionalities:
-     - Filters for choosing place by name.
-     - KPIs for Total Reviews, Avg. Rating, Review Frequency and Yearly Review Rate.
-     - Wordcloud to analyze frequent occurring words in reviews.
-     - Plotly bar chart for analyzing average reviews w.r.t Quarters for every year.
-     - Plotly Scatter chart to analyze sentiment score over the time.
-     - Plotly Pie Chart to get distribution of review per rating.
+    Function to show review analytics for a place
+
+    :param location: name of city and country
+    :param business_place: type of business
+
     :return: Streamlit frame/view
     """
-    place_data = st.session_state[f'{location}-data']
-    reviews_data = st.session_state[f'{location}-reviews']
+    place_data = st.session_state[f'{location}-{business_place}-data']
+    reviews_data = st.session_state[f'{location}-{business_place}-reviews']
 
     filter_kpi_row = st.columns((3, 1, 2, 2, 2, 2))
     place = filter_kpi_row[0].selectbox("Select place", options=reviews_data["place_Name"].unique())
@@ -147,66 +154,39 @@ def review_analytics_page(location):
     filter_kpi_row[4].metric(label="Unique Reviewers", value=f"{unique_reviewers}")
     filter_kpi_row[5].metric(label="Reviews Rate/month", value=f"{monthly_reviews_rate:.1f}")
 
-    # calling function to display analytics charts based on selected place
-    display_reviews_analysis(place_reviews)
-
-
-def calculate_kpis(place_data, place_reviews):
-    """
-    Function to calculate KPI values
-    :param place_reviews: dataframe of reviews
-    :param place_data: dataframe containing info of the place
-    :return: Tuple(int, float, float, float)
-    """
-
-    total_reviews = place_data['totalReviews'].iloc[0]
-    average_ratings = place_data['averageRating'].iloc[0]
-    total_years = place_reviews['datetime'].dt.year.nunique()
-
-    earliest_date = place_reviews['datetime'].min()
-    latest_date = place_reviews['datetime'].max()
-    total_months = (latest_date.year - earliest_date.year) * 12 + (latest_date.month - earliest_date.month)
-    monthly_reviews_rate = (total_reviews / total_months)
-
-    unique_reviewers = place_reviews["reviewer"].nunique()
-
-    return total_reviews, average_ratings, unique_reviewers, monthly_reviews_rate
-
-
-def display_reviews_analysis(reviews_data: pd.DataFrame) -> None:
-    """
-    Function to display reviews analytics.
-    :param reviews_data: reviews data.
-    :return: None
-    """
-
     charts_row_1 = st.columns((4, 3))
-    # Chart to display Reviews Distribution w.r.t Quarter-Year
+    # Reviews Distribution w.r.t Quarter-Year
     charts_row_1[0].plotly_chart(average_rating_overtime(reviews_data), use_container_width=True)
-    # Chart to display Reviews per Rating
+    # Rating distribution pie
     charts_row_1[1].plotly_chart(rating_breakdown_pie(reviews_data), use_container_width=True)
 
     charts_row_2 = st.columns((3, 4))
-    # scatter plot to display sentiment score over the time
+    # sentiment score over the time
     charts_row_2[0].plotly_chart(sentiment_score_overtime(reviews_data), use_container_width=True)
-    # chart to display the varying rating over the time
+    # rating over the time
     charts_row_2[1].plotly_chart(average_rating_wrt_month_year(reviews_data), use_container_width=True)
-    # Wordcloud figure to analyze frequently occurring words in review text
+    # Wordcloud of review text
     st.pyplot(reviews_wordcloud(reviews_data), clear_figure=True, use_container_width=True)
 
 
-
-# @st.cache_resource
-def market_analysis_page(location, country):
+@st.cache_resource
+def market_analysis_page(location, business_place):
     """
     Function to create view for the 'Market Analysis' tab
     :return: Analytics charts
     """
-    place_data = st.session_state[f'{location}-data']
+    place_data = st.session_state[f'{location}-{business_place}-data']
 
     cols = st.columns(2)
-    cols[0].write("#### Geographical Distribution of Ratings")
-    cols[0].plotly_chart(place_choropleth(place_data, country), use_container_width=True)
-    cols[1].write("#### Top Rated Pharmacies")
-    cols[1].plotly_chart(top_performing_places(place_data), use_container_width=True)
+    with cols[0]:
+        st.write("#### Geographical Distribution of Ratings")
+        folium_marker_map(place_data)
+    with cols[1]:
+        st.write("#### Geographical Clusters of Business Points")
+        spatial_dist_of_business_points(place_data)
+
+    st.plotly_chart(top_performing_places(place_data), use_container_width=True)
+
+
+
 

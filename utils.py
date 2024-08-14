@@ -1,11 +1,8 @@
 import requests
 import pandas as pd
-from typing import Tuple
 from datetime import datetime, timezone
 from concurrent.futures import ThreadPoolExecutor
-from geopy.geocoders import Nominatim
 from geosky import geo_plug
-import streamlit as st
 import json
 import time
 # from textblob_de import TextBlobDE
@@ -14,11 +11,6 @@ from textblob import TextBlob
 import nltk
 
 nltk.download('punkt')
-
-
-
-# Initialize Nominatim geocoder
-geolocator = Nominatim(user_agent="Biz-Reviews-Analyzer")
 
 
 def get_cities_names(location):
@@ -41,17 +33,6 @@ def get_cities_names(location):
                 break
 
     return cities
-
-
-# Fetch cities for the selected country using geopy
-def get_cities(country_name):
-    location = geolocator.geocode(country_name)
-    if location:
-        cities = geolocator.geocode(country_name, exactly_one=False, limit=100)
-        print(cities)
-        if cities:
-            return [city.address.split(',')[0] for city in cities]
-    return []
 
 
 def fetch_place_details(api_key, result, location, i):
@@ -115,7 +96,7 @@ def get_places_data(api_key, business_place, location, n=20):
 
                 df_places_info = pd.DataFrame(places_list)
 
-                df_places_info = preprocess_data(df_places_info)
+                df_places_info = pre_process_listings_data(df_places_info)
                 yield df_places_info
 
         next_page_token = search_data.get('next_page_token', None)
@@ -131,7 +112,7 @@ def get_places_data(api_key, business_place, location, n=20):
     # Convert lists to DataFrames
     df_places = pd.DataFrame(places_list)
 
-    df_places = preprocess_data(df_places)
+    df_places = pre_process_listings_data(df_places)
 
     return df_places
 
@@ -166,29 +147,9 @@ def get_place_reviews(api_key, result):
         reviews_list.append(review_info)
 
     if len(reviews) != 0:
-        return preprocess_reviews(pd.DataFrame(reviews_list))
+        return pre_process_reviews(pd.DataFrame(reviews_list))
     else:
         return pd.DataFrame()
-
-
-def preprocess_reviews(df: pd.DataFrame) -> Tuple[pd.DataFrame]:
-    """
-    Pre-processes reviews data.
-    :param data: DataFrame containing reviews data.
-    :return: A pre-processed DataFrame for reviews.
-    """
-    df = pre_process_reviews(df)
-    return df
-
-
-def preprocess_data(data: pd.DataFrame) -> Tuple[pd.DataFrame]:
-    """
-    Pre-processes data related to place listings.
-    :param data: DataFrame containing information about place listings.
-    :return: A pre-processed DataFrames for places.
-    """
-    data = pre_process_listings_data(data)
-    return data
 
 
 def pre_process_listings_data(data: pd.DataFrame) -> pd.DataFrame:
@@ -205,10 +166,8 @@ def pre_process_listings_data(data: pd.DataFrame) -> pd.DataFrame:
     data["markerColor"] = data["totalReviews"].apply(
         lambda x: "green" if x >= 100 else ("orange" if x >= 50 else ("lightgray" if x >= 25 else "red")))
     data["totalReviews"] = data["totalReviews"].astype(int)
-    # data["city"] = data["address"].apply(lambda x: x.split(', ')[-2].split(' ')[-1])
     data["adjustedReview"] = data["totalReviews"].apply(adjusted_reviews)
     data["adjustedRating"] = data["averageRating"].apply(lambda x: int(x // 1))
-    # Sort the DataFrame based on 'ranking'
     data.sort_values(by='totalReviews', inplace=True)
     data.reset_index(drop=True, inplace=True)
 
@@ -261,9 +220,6 @@ def adjust_column_datatypes(df: pd.DataFrame) -> pd.DataFrame:
 def pre_process_reviews(data: pd.DataFrame) -> pd.DataFrame:
     """
     Pre-processes the reviews data by performing the following steps:
-
-        - Transposes the DataFrame.
-        - Resets the index for consistency.
         - Adjusts column datatypes.
         - Fills missing values with 0.
         - Converts the 'datetime' column to a formatted 'date' column.
@@ -342,8 +298,29 @@ def insert_sentiment_scores(df):
     :param df: dataframe containing reviews data
     :return: dataframe with added column representing sentiment scores.
     """
-    # Add a new column for sentiment scores using the calculate_sentiment_score function
+
     df['sentiment_score'] = df.apply(calculate_sentiment_score, axis=1)
 
     return df
 
+
+def calculate_kpis(place_data, place_reviews):
+    """
+    Function to calculate KPI values
+    :param place_reviews: dataframe of reviews
+    :param place_data: dataframe containing info of the place
+    :return: KPIs values
+    """
+
+    total_reviews = place_data['totalReviews'].iloc[0]
+    average_ratings = place_data['averageRating'].iloc[0]
+    total_years = place_reviews['datetime'].dt.year.nunique()
+
+    earliest_date = place_reviews['datetime'].min()
+    latest_date = place_reviews['datetime'].max()
+    total_months = (latest_date.year - earliest_date.year) * 12 + (latest_date.month - earliest_date.month)
+    monthly_reviews_rate = (total_reviews / total_months)
+
+    unique_reviewers = place_reviews["reviewer"].nunique()
+
+    return total_reviews, average_ratings, unique_reviewers, monthly_reviews_rate

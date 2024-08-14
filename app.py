@@ -1,61 +1,46 @@
 import streamlit as st
-import pandas as pd
-from streamlit_option_menu import option_menu
 from css.streamlit_style_const import STYLE
+from streamlit_option_menu import option_menu
+from views.tabs import places_map_tab, list_view_tab, reviews_analytics_tab, market_analysis_tab
+from template.constants import query_map
 from utils import *
-from views import map_view, list_view, review_analytics_page, market_analysis_page
-from constants import query_map
 
 
-# ------------------------------ Page Configuration------------------------------
+#  Page Configuration
 st.set_page_config(page_title="BizReview Analysis", page_icon="📊", layout="wide")
 
-# ----------------------------------- Page Styling ------------------------------
-
+# Page Styling
 with open("css/style.css") as css:
     st.markdown(f'<style>{css.read()}</style>', unsafe_allow_html=True)
 
 st.markdown(STYLE, unsafe_allow_html=True)
 
+# Global Variable
 API_KEY = st.secrets["API_KEY"]
 
-st.session_state['places_data'] = {}
-st.session_state['reviews_data'] = {}
+def initialize_session_state():
+    if 'data_store' not in st.session_state:
+        st.session_state['data_store'] = pd.DataFrame(columns=['City', 'Country', 'Business Point', 'Reviews'])
 
-# --------------------------------------------------------------------------------
-
-business_place = st.sidebar.selectbox(label="Business", options=list(query_map.keys()))
-countries_list = geo_plug.all_CountryNames()
-location = st.sidebar.selectbox(label="Location", options=countries_list)
-cities_list = get_cities_names(location)
-city = st.sidebar.selectbox(label="City", options=sorted(cities_list))
-
-# --------------------------------------------------------------------------------
 
 def main():
+    # Initialize session state
+    initialize_session_state()
 
-    # ----- Menu -----
+    # Menu
     menu = option_menu(menu_title=None, menu_icon=None, orientation="horizontal",
-                       options=["Pharmacies Map", "List View", "Reviews Analytics", "Market Analysis"],
-                       icons=['map', 'view-list', 'bar-chart', 'graph-up-arrow']
-                       )
+                       options=["Places Map", "List View", "Reviews Analytics", "Market Analysis"],
+                       icons=['map', 'view-list', 'bar-chart', 'graph-up-arrow'])
 
-    # # ----- Tab for Map View -----
-    if menu == "Pharmacies Map":
-        map_view(business_place, f"{city},+{location}", API_KEY)
-    # ----- Tab for List View -----
+    # Handle different tabs
+    if menu == "Places Map":
+        places_map_tab(query_map, geo_plug, API_KEY)
     elif menu == "List View":
-        list_view(business_place, f"{city},+{location}", API_KEY)
-    # # ----- Tab for Reviews Analysis -----
+        list_view_tab(API_KEY)
     elif menu == "Reviews Analytics":
-        review_analytics_page(f"{city},+{location}")
-    #
-    # # ----- Tab for Pharmaceutical Market Analysis -----
+        reviews_analytics_tab()
     elif menu == "Market Analysis":
-        market_analysis_page(location=f"{city},+{location}", country=location)
-
-
-    # --------------------------------------------------------------------------------
+        market_analysis_tab()
 
 
 if __name__ == "__main__":
