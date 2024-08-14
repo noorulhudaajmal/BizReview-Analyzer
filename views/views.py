@@ -156,17 +156,18 @@ def review_analytics_page(location, business_place):
 
     charts_row_1 = st.columns((4, 3))
     # Reviews Distribution w.r.t Quarter-Year
-    charts_row_1[0].plotly_chart(average_rating_overtime(reviews_data), use_container_width=True)
+    charts_row_1[0].plotly_chart(average_rating_overtime(place_reviews), use_container_width=True)
     # Rating distribution pie
-    charts_row_1[1].plotly_chart(rating_breakdown_pie(reviews_data), use_container_width=True)
+    charts_row_1[1].plotly_chart(rating_breakdown_pie(place_reviews), use_container_width=True)
+
 
     charts_row_2 = st.columns((3, 4))
     # sentiment score over the time
-    charts_row_2[0].plotly_chart(sentiment_score_overtime(reviews_data), use_container_width=True)
+    charts_row_2[0].plotly_chart(sentiment_score_overtime(place_reviews), use_container_width=True)
     # rating over the time
-    charts_row_2[1].plotly_chart(average_rating_wrt_month_year(reviews_data), use_container_width=True)
+    charts_row_2[1].plotly_chart(average_rating_wrt_month_year(place_reviews), use_container_width=True)
     # Wordcloud of review text
-    st.pyplot(reviews_wordcloud(reviews_data), clear_figure=True, use_container_width=True)
+    st.pyplot(reviews_wordcloud(place_reviews), clear_figure=True, use_container_width=True)
 
 
 @st.cache_resource
